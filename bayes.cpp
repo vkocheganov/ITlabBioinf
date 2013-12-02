@@ -22,7 +22,7 @@ vector<double> loadResponse(string fileName)
     {
         file >> temp;
         ret.push_back(temp);
-        cout <<temp<<endl;
+//        cout <<temp<<endl;
     }
     ret.pop_back();
     file.close();
@@ -64,10 +64,10 @@ vector< vector <double> > loadSamples(string fileName)
         while(!iss.eof())
         {
             iss >> temp;
-            cout<< temp<<" ";
+//            cout<< temp<<" ";
             ret1.push_back(temp);
         }
-        cout<<endl;
+//        cout<<endl;
         ret.push_back(ret1);
         if (size != ret1.size())
         {
@@ -85,14 +85,21 @@ vector< vector <double> > loadSamples(string fileName)
 }
 
 
+vector<double> mean(vector<vector<double> >& sample)
+{
+    for (int i = 0; i < sample[0].size(); i++)
+    {
+        
+    }
+}
+
 int main()
 {
     cout<<"hello\n";
 //    vector<double> v = loadResponse("/home/maths/Documents/betta_data/ITlabBioinf/testResp.csv");
-    vector<double> v = loadResponse("../resp.csv");
-    cout<<"size = "<<v.size()<<endl;
-    loadSamples("../data.csv");
-//    loadSamples("/home/maths/Documents/betta_data/ITlabBioinf/testSamples.csv");
-//    cout<<"size = "<<v.size()<<endl;
+//    vector<double> v = loadResponse("/home/victor/Documents/beta_data/resp.csv");
+    cout<<"resp size = "<<v.size()<<endl;
+//    loadSamples("../data.csv");
+//    vector<vector<double> > v1 = loadSamples("/home/victor/Documents/beta_data/data_avail.csv");
     return 0;
 }
