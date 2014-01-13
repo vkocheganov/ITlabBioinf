@@ -5,6 +5,8 @@
 #include <string>
 
 using namespace std;
+#define MIN(a,b) ((a) < (b) ? (a) : (b) )
+
 
 vector<bool> loadResponse(string fileName)
 {
@@ -205,7 +207,6 @@ vector<int> get_sample(gsl_rng* r, int max)
     return vecRet;
 }
 
-
 //g++ -O3 bayes.cpp  -lgsl -lgslcblas  -o bayes && ./bayes
 #include "gsl/gsl_cdf.h"
 
@@ -395,10 +396,9 @@ void make_experiment(string cancerName,gsl_rng* r, string outFile)
     ofile<<total_mean<<" ";
     ofile<<total_mean_sd<<" "<<endl;
     ofile.close();
-
 }
-#define MIN(a,b) ((a) < (b) ? (a) : (b) )
-void make_experiment1(string cancerName,gsl_rng* r, string outFile)
+
+void make_experiment1(string cancerName,gsl_rng* rand_generator, string outFile)
 {
     string filenameResp = cancerName + ".resp.csv";
     string filenameSample = cancerName + ".sample.csv";
@@ -429,8 +429,8 @@ void make_experiment1(string cancerName,gsl_rng* r, string outFile)
 
     for (int k = 0; k < experimentCount; k++)
     {
-        vector<int > healphyShuffle(get_sample(r, healphy_sample[0].size())),
-            cancerShuffle(get_sample(r, cancer_sample[0].size()));
+        vector<int > healphyShuffle(get_sample(rand_generator, healphy_sample[0].size())),
+            cancerShuffle(get_sample(rand_generator, cancer_sample[0].size()));
         
         vector<int> healphy_test(healphyShuffle.begin()+healphy_sample[0].size()/2 + 1,
                               healphyShuffle.end());
@@ -527,43 +527,32 @@ void make_experiment1(string cancerName,gsl_rng* r, string outFile)
 
 int main()
 {
-    gsl_rng* r= gsl_rng_alloc(gsl_rng_taus);
-    gsl_rng_set(r, time(NULL));
-    cout<<"hello\n";
-    string outFile("test_train_errs.txt");
-    ofstream ofile;
-    ofile.open(outFile.c_str(), iostream::out);
-
-    ofile.close();
+    gsl_rng* rand_generator= gsl_rng_alloc(gsl_rng_taus);
+    gsl_rng_set(rand_generator, time(NULL));
     
+    string outFileSuffix("test_train_errs.txt");
+
     vector<string> cancers;
     cancers.push_back("BLCA");
-    cancers.push_back("READ");
-    cancers.push_back("KIRP");
-    cancers.push_back("LIHC");
-    cancers.push_back("PRAD");
-    cancers.push_back("LUSC");
-    cancers.push_back("COAD");
-    cancers.push_back("LUAD");
-    cancers.push_back("HNSC");
-    cancers.push_back("THCA");
-    cancers.push_back("UCEC");
-    cancers.push_back("KIRC");
-    cancers.push_back("BRCA");
-    // if (cancers.size() != 1 )
-    // {
-    //     cout <<"Error !!!!!!!!!!!!!!\n";
-    //     return -1;
-    // }
+    // cancers.push_back("READ");
+    // cancers.push_back("KIRP");
+    // cancers.push_back("LIHC");
+    // cancers.push_back("PRAD");
+    // cancers.push_back("LUSC");
+    // cancers.push_back("COAD");
+    // cancers.push_back("LUAD");
+    // cancers.push_back("HNSC");
+    // cancers.push_back("THCA");
+    // cancers.push_back("UCEC");
+    // cancers.push_back("KIRC");
+    // cancers.push_back("BRCA");
     for (int i = 0; i < cancers.size(); i++)
     {
-        make_experiment1(cancers[i], r,cancers[i]+outFile);
+        make_experiment1(cancers[i], rand_generator,cancers[i]+outFileSuffix);
     }
     cout<<"after experiments\n";
     
-//    loadSamples("../data.csv");
-//    vector<vector<double> > v1 = loadSamples("/home/victor/Documents/beta_data/data_avail.csv");
-    gsl_rng_free(r);
+    gsl_rng_free(rand_generator);
     return 0;
 }
 
