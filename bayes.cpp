@@ -17,17 +17,19 @@ vector<bool> loadResponse(string fileName)
     {
         cout<<"error"<<endl;
     }
-    
+    cout<<"Loading response"<<endl;
+
     string word;
     bool temp;
     while(!file.eof())
     {
         file >> temp;
         ret.push_back(temp);
-//        cout <<temp<<endl;
     }
     ret.pop_back();
     file.close();
+    cout<<"Loading response finished"<<endl;
+
     return ret;
 }
 
@@ -36,22 +38,18 @@ void loadSamples(vector< vector <double> >& healphy,
                  vector<bool>& resp,
                  string fileName)
 {
-    healphy.clear();
-    cancer.clear();
-    vector<double> retHealphy;
-    vector<double> retCancer;
+    vector<double> healphyVec;
+    vector<double> cancerVec;
     ifstream file;
-    int size;
     file.open(fileName.c_str(),ifstream::in);
     if (!file.good())
     {
         cout<<"error"<<endl;
     }
+    cout<<"Loading samples"<<endl;
     
     double temp;
     string line;
-    retHealphy.clear();
-    retCancer.clear();
     getline(file, line);
     istringstream iss(line);
     int count = 0;
@@ -60,47 +58,43 @@ void loadSamples(vector< vector <double> >& healphy,
     {
         iss >> temp;
         if(resp[count])
-            retCancer.push_back(temp);
+            cancerVec.push_back(temp);
         else
-            retHealphy.push_back(temp);
+            healphyVec.push_back(temp);
         count++;
     }
     
-    cancer.push_back(retCancer);
-    healphy.push_back(retHealphy);
-
-    // process pair (a,b)
+    cancer.push_back(cancerVec);
+    healphy.push_back(healphyVec);
 
     while (getline(file, line))
     {
-        retHealphy.clear();
-        retCancer.clear();
+        healphyVec.clear();
+        cancerVec.clear();
         istringstream iss(line);
         count = 0;
         while(!iss.eof())
         {
             iss >> temp;
             if(resp[count])
-                retCancer.push_back(temp);
+                cancerVec.push_back(temp);
             else
-                retHealphy.push_back(temp);
+                healphyVec.push_back(temp);
             count++;
         }
-        cancer.push_back(retCancer);
-        healphy.push_back(retHealphy);
+        cancer.push_back(cancerVec);
+        healphy.push_back(healphyVec);
         
         if(cancer.size() % 10000 == 0)
         {
-            cout <<cancer.size()<<endl;
+            cout <<"progress: " << cancer.size()<<endl;
         }
-        
-        // process pair (a,b)
     }
     
     file.close();
+    cout<<"Loading samples finished"<<endl;
 }
 
-#include <algorithm>
 vector<double> mean(vector<vector<double> >& sample, vector<int>& ind)
 {
     vector<double> ret;
@@ -115,18 +109,6 @@ vector<double> mean(vector<vector<double> >& sample, vector<int>& ind)
         }
         ret.push_back(sum/ind.size());
     }
-    // for (int i = 0; i < sample.size(); i++)
-    // {
-    //     sum = 0;
-    //     temp.clear();
-    //     for (int j = 0; j < ind.size(); j++)
-    //     {
-    //         temp.push_back(sample[i][ind[j]]);
-    //     }
-    //     sort(temp.begin(),temp.end());
-    //     ret.push_back(temp[temp.size()/2]);
-    // }
-
     return ret;
 }
 
@@ -210,21 +192,18 @@ vector<int> get_sample(gsl_rng* r, int max)
 //g++ -O3 bayes.cpp  -lgsl -lgslcblas  -o bayes && ./bayes
 #include "gsl/gsl_cdf.h"
 
-void make_experiment(string cancerName,gsl_rng* r, string outFile)
+void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
 {
     string filenameResp = cancerName + ".resp.csv";
-    string filenameSample = cancerName + ".sample.csv";
-    
     vector<bool> resp = loadResponse(filenameResp);
     cout<<"resp size = "<<resp.size()<<endl;
 
+    string filenameSample = cancerName + ".sample.csv";
     vector<vector<double> > healphy_sample,
         cancer_sample;
     loadSamples(healphy_sample, cancer_sample, resp, filenameSample);
     cout<<"healphy sample size = "<<healphy_sample.size()<<endl;
     cout<<"cancer sample size = "<<cancer_sample.size()<<endl;
-    
-
 
     int experimentCount = 15;
     double eps = 0.00000000001;
@@ -245,8 +224,8 @@ void make_experiment(string cancerName,gsl_rng* r, string outFile)
     vector<int> cancer_test;
     for (int k = 0; k < experimentCount; k++)
     {
-        healphyShuffle = get_sample(r, healphy_sample[0].size());
-        cancerShuffle = get_sample(r, cancer_sample[0].size());
+        healphyShuffle = get_sample(rand_generator, healphy_sample[0].size());
+        cancerShuffle = get_sample(rand_generator, cancer_sample[0].size());
         healphy_train = vector<int>(healphyShuffle.begin(),
                                healphyShuffle.begin()+healphy_sample[0].size()/2);
         healphy_test = vector<int>(healphyShuffle.begin()+healphy_sample[0].size()/2 + 1,
@@ -401,11 +380,10 @@ void make_experiment(string cancerName,gsl_rng* r, string outFile)
 void make_experiment1(string cancerName,gsl_rng* rand_generator, string outFile)
 {
     string filenameResp = cancerName + ".resp.csv";
-    string filenameSample = cancerName + ".sample.csv";
-    
     vector<bool> resp = loadResponse(filenameResp);
     cout<<"resp size = "<<resp.size()<<endl;
 
+    string filenameSample = cancerName + ".sample.csv";
     vector<vector<double> > healphy_sample,
         cancer_sample;
     loadSamples(healphy_sample, cancer_sample, resp, filenameSample);
@@ -528,7 +506,8 @@ void make_experiment1(string cancerName,gsl_rng* rand_generator, string outFile)
 int main()
 {
     gsl_rng* rand_generator= gsl_rng_alloc(gsl_rng_taus);
-    gsl_rng_set(rand_generator, time(NULL));
+    // gsl_rng_set(rand_generator, time(NULL));
+    gsl_rng_set(rand_generator, 0);
     
     string outFileSuffix("test_train_errs.txt");
 
@@ -548,7 +527,7 @@ int main()
     // cancers.push_back("BRCA");
     for (int i = 0; i < cancers.size(); i++)
     {
-        make_experiment1(cancers[i], rand_generator,cancers[i]+outFileSuffix);
+        make_experiment(cancers[i], rand_generator,cancers[i]+outFileSuffix);
     }
     cout<<"after experiments\n";
     
