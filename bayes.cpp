@@ -16,6 +16,9 @@ using namespace std;
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b) )
 
+const int experimentCount = 15;
+const double smoothingEps = 0.00000000001;
+const double trainPart = 0.5;
 
 vector<bool> loadResponse(string fileName)
 {
@@ -179,6 +182,7 @@ struct SumErrorsStruct
     
 void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
 {
+    // Loading data
     string filenameResp = cancerName + ".resp.csv";
     vector<bool> resp = loadResponse(filenameResp);
     cout<<"resp size = "<<resp.size()<<endl;
@@ -190,11 +194,9 @@ void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
     cout<<"healphy sample size = "<<healphy_sample.size()<<endl;
     cout<<"cancer sample size = "<<cancer_sample.size()<<endl;
 
-    const int experimentCount = 15;
-    double eps = 0.00000000001;
+    // Main loop
     SumErrorsStruct errs;
-    int err_healphy = 0;
-    int err_cancer = 0;
+    
     vector<int > healphyShuffle,
         cancerShuffle;
     vector<int> healphy_train;
@@ -203,6 +205,8 @@ void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
     vector<int> cancer_test;
     for (int k = 0; k < experimentCount; k++)
     {
+        int healphyErrLocal = 0;
+        int cancerErrLocal = 0;
         healphyShuffle = get_sample(rand_generator, healphy_sample[0].size());
         cancerShuffle = get_sample(rand_generator, cancer_sample[0].size());
         healphy_train = vector<int>(healphyShuffle.begin(),
@@ -233,23 +237,23 @@ void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
             prob1 = 0;
         
         t = clock();
-        err_healphy = 0;
+        healphyErrLocal = 0;
         for (int i = 0; i < healphy_test.size(); i++)
         {
             prob0 = 0;
             prob1 = 0;
             for (int j = 0; j < healphy_sample.size(); j++)
             {
-                prob0 += log( gsl_ran_gaussian_pdf(healphy_sample[j][healphy_test[i]]-means_healphy[j],sds_healphy[j])  +eps);
-                prob1 += log( gsl_ran_gaussian_pdf(healphy_sample[j][healphy_test[i]]-means_cancer[j] ,sds_cancer[j]) +eps);
+                prob0 += log( gsl_ran_gaussian_pdf(healphy_sample[j][healphy_test[i]]-means_healphy[j],sds_healphy[j])  +smoothingEps);
+                prob1 += log( gsl_ran_gaussian_pdf(healphy_sample[j][healphy_test[i]]-means_cancer[j] ,sds_cancer[j]) +smoothingEps);
             }
-            prob0 += log(double(healphy_train.size())/(healphy_train.size()+cancer_train.size())+eps);
-            prob1 += log(double(cancer_train.size())/(healphy_train.size()+cancer_train.size())+eps);
+            prob0 += log(double(healphy_train.size())/(healphy_train.size()+cancer_train.size())+smoothingEps);
+            prob1 += log(double(cancer_train.size())/(healphy_train.size()+cancer_train.size())+smoothingEps);
 //            cout<<prob1 - prob0<<endl;
-            err_healphy += prob0 < prob1;
+            healphyErrLocal += prob0 < prob1;
         }
         cout<<"healphy predicting time = "<<double(clock() - t)/CLOCKS_PER_SEC<<endl;
-        cout<<"errs = "<<err_healphy<<" out of "<<healphy_test.size()<<endl;
+        cout<<"errs = "<<healphyErrLocal<<" out of "<<healphy_test.size()<<endl;
 
 
 //         err_cancer = 0;
@@ -269,30 +273,30 @@ void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
 //         }
 //         errs.cancerErr_train += err_cancer;
 
-        cout<<"errs cancer train = "<<err_cancer<<" out of "<<cancer_train.size()<<endl;
+        cout<<"errs cancer train = "<<cancerErrLocal<<" out of "<<cancer_train.size()<<endl;
         t = clock();
-        err_cancer = 0;
+        cancerErrLocal = 0;
         for (int i = 0; i < cancer_test.size(); i++)
         {
             prob0 = 0;
             prob1 = 0;
             for (int j = 0; j < cancer_sample.size(); j++)
             {
-                prob0 += log( gsl_ran_gaussian_pdf(cancer_sample[j][cancer_test[i]]-means_healphy[j],sds_healphy[j])  +eps);
-                prob1 += log( gsl_ran_gaussian_pdf(cancer_sample[j][cancer_test[i]]-means_cancer[j] ,sds_cancer[j]) +eps);
+                prob0 += log( gsl_ran_gaussian_pdf(cancer_sample[j][cancer_test[i]]-means_healphy[j],sds_healphy[j])  +smoothingEps);
+                prob1 += log( gsl_ran_gaussian_pdf(cancer_sample[j][cancer_test[i]]-means_cancer[j] ,sds_cancer[j]) +smoothingEps);
             }
             // prob0 += log(double(healphy_train.size())/(cancer_train.size()+healphy_train.size())+eps);
             // prob1 += log(double(cancer_train.size())/(cancer_train.size()+healphy_train.size())+eps);
 //            cout<<prob0 - prob1<<endl;
-            err_cancer += prob1 < prob0;
+            cancerErrLocal += prob1 < prob0;
         }
-        errs.healphyErr += err_healphy;
-        errs.healphyErrSquared += err_healphy * err_healphy;
-        errs.cancerErr += err_cancer;
-        errs.cancerErrSquared += err_cancer * err_cancer;
-        errs.totalErrSquared += (err_cancer + err_healphy)*(err_cancer + err_healphy);
+        errs.healphyErr += healphyErrLocal;
+        errs.healphyErrSquared += healphyErrLocal * healphyErrLocal;
+        errs.cancerErr += cancerErrLocal;
+        errs.cancerErrSquared += cancerErrLocal * cancerErrLocal;
+        errs.totalErrSquared += (cancerErrLocal + healphyErrLocal)*(cancerErrLocal + healphyErrLocal);
         cout<<"cancer predicting time = "<<double(clock() - t)/CLOCKS_PER_SEC<<endl;
-        cout<<"errs = "<<err_cancer<<" out of "<<cancer_test.size()<<endl;
+        cout<<"errs = "<<cancerErrLocal<<" out of "<<cancer_test.size()<<endl;
     }
     
     cout<<"healphy errors:  "<<errs.healphyErr<< " out of "<<healphy_test.size()*experimentCount<<". "<<double(errs.healphyErr)/(healphy_test.size()*experimentCount)<<endl;
