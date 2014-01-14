@@ -3,8 +3,17 @@
 #include <vector>
 #include <sstream>
 #include <string>
+#include <math.h>
+
+// for shuffling
+#include "gsl/gsl_rng.h"
+#include "gsl/gsl_randist.h"
+
+//for distributions
+#include "gsl/gsl_cdf.h"
 
 using namespace std;
+
 #define MIN(a,b) ((a) < (b) ? (a) : (b) )
 
 
@@ -112,47 +121,12 @@ vector<double> mean(vector<vector<double> >& sample, vector<int>& ind)
     return ret;
 }
 
-vector<double> var(vector<vector<double> >& sample, vector<int>& ind)
-{
-    vector<double> ret;
-    double sum = 0;
-    double sum2 = 0;
-    int N;
-    for (int i = 0; i < sample.size(); i++)
-    {
-        sum = 0;
-        sum2 = 0;
-        N = ind.size();
-        for (int j = 0; j < N; j++)
-        {
-            sum += sample[i][ind[j]];
-            sum2 += sample[i][ind[j]]*sample[i][ind[j]];
-        }
-        ret.push_back((sum2 - sum*sum/N)/(N));
-    }
-    return ret;
-}
-
-#include <math.h>
 vector<double> sd(vector<vector<double> >& sample, vector<int>& ind)
-//vector<double> sd(vector<vector<double> >& sample, vector<int>& ind, vector<double>& means)
 {
     vector<double> ret;
     double sum = 0;
-//    double temp;
     double sum2 = 0;
     int N;
-    // for (int i = 0; i < sample.size(); i++)
-    // {
-    //     sum = 0;
-    //     N = ind.size();
-    //     for (int j = 0; j < N; j++)
-    //     {
-    //         temp = means[i] - sample[i][ind[j]];
-    //         sum += temp*temp;
-    //     }
-    //     ret.push_back(sqrt(sum/N));
-    // }
     for (int i = 0; i < sample.size(); i++)
     {
         sum = 0;
@@ -164,22 +138,20 @@ vector<double> sd(vector<vector<double> >& sample, vector<int>& ind)
             sum2 += sample[i][ind[j]]*sample[i][ind[j]];
         }
 
+        // ret.push_back(sqrt((sum2 - sum*sum/N)/(N-1) + 0.00000000001));
         ret.push_back(sqrt((sum2 - sum*sum/N)/(N) + 0.00000000001));
     }
     return ret;
 }
 
-#include "gsl/gsl_rng.h"
-#include "gsl/gsl_randist.h" // for shuffling
-
-vector<int> get_sample(gsl_rng* r, int max)
+vector<int> get_sample(gsl_rng* rand_generator, int max)
 {
     int* vec = new int[max];
     for (int i = 0; i < max; i++)
     {
         vec[i] = i;
     }
-    gsl_ran_shuffle(r, (void*) vec, max,sizeof(*vec));
+    gsl_ran_shuffle(rand_generator, (void*) vec, max,sizeof(*vec));
     vector<int> vecRet;
     for (int i = 0; i < max; i++)
     {
@@ -189,10 +161,23 @@ vector<int> get_sample(gsl_rng* r, int max)
     return vecRet;
 }
 
-//g++ -O3 bayes.cpp  -lgsl -lgslcblas  -o bayes && ./bayes
-#include "gsl/gsl_cdf.h"
-
-void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
+struct SumErrorsStruct
+{
+    int healphyErr;
+    int cancerErr;
+    int healphyErrSquared;
+    int cancerErrSquared;
+    int totalErrSquared;
+    int healphyErrTrain;
+    int cancerErrTrain;
+    SumErrorsStruct():
+        healphyErr(0), cancerErr(0), healphyErrSquared(0),
+        cancerErrSquared(0), totalErrSquared(0),
+        healphyErrTrain(0), cancerErrTrain(0)
+        {}
+};
+    
+void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
 {
     string filenameResp = cancerName + ".resp.csv";
     vector<bool> resp = loadResponse(filenameResp);
@@ -205,17 +190,11 @@ void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
     cout<<"healphy sample size = "<<healphy_sample.size()<<endl;
     cout<<"cancer sample size = "<<cancer_sample.size()<<endl;
 
-    int experimentCount = 15;
+    const int experimentCount = 15;
     double eps = 0.00000000001;
+    SumErrorsStruct errs;
     int err_healphy = 0;
     int err_cancer = 0;
-    int err_healphy_glob = 0;
-    int err_cancer_glob = 0;
-    int err_healphy_glob_train = 0;
-    int err_cancer_glob_train = 0;
-    int err_healphy_glob2 = 0;
-    int err_cancer_glob2 = 0;
-    int err_total_glob2 = 0;
     vector<int > healphyShuffle,
         cancerShuffle;
     vector<int> healphy_train;
@@ -243,8 +222,6 @@ void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
         cout<<"mean time = "<<double(clock() - t)/CLOCKS_PER_SEC<<endl;
     
         t = clock();
-        // vector<double> sds_healphy = sd(healphy_sample,healphy_train,means_healphy);
-        // vector<double> sds_cancer = sd(cancer_sample,cancer_train, means_cancer);
         vector<double> sds_healphy = sd(healphy_sample,healphy_train);
         vector<double> sds_cancer = sd(cancer_sample,cancer_train);
         cout<<"sd time = "<<double(clock() - t)/CLOCKS_PER_SEC<<endl;
@@ -254,23 +231,6 @@ void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
 
         double prob0 = 0,
             prob1 = 0;
-
-        // err_healphy = 0;
-        // for (int i = 0; i < healphy_train.size(); i++)
-        // {
-        //     prob0 = 0;
-        //     prob1 = 0;
-        //     for (int j = 0; j < healphy_sample.size(); j++)
-        //     {
-        //         prob0 += log( gsl_ran_gaussian_pdf(healphy_sample[j][healphy_train[i]]-means_healphy[j],sds_healphy[j])  +eps);
-        //         prob1 += log( gsl_ran_gaussian_pdf(healphy_sample[j][healphy_train[i]]-means_cancer[j] ,sds_cancer[j]) +eps);
-        //     }
-        //     prob0 += log(double(healphy_train.size())/(healphy_train.size()+cancer_train.size())+eps);
-        //     prob1 += log(double(cancer_train.size())/(healphy_train.size()+cancer_train.size())+eps);
-        //     err_healphy += prob0 < prob1;
-        // }
-        // cout<<"healphy train errs = "<<err_healphy<<" out of "<<healphy_train.size()<<endl;
-        // err_healphy_glob_train += err_healphy;
         
         t = clock();
         err_healphy = 0;
@@ -283,8 +243,8 @@ void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
                 prob0 += log( gsl_ran_gaussian_pdf(healphy_sample[j][healphy_test[i]]-means_healphy[j],sds_healphy[j])  +eps);
                 prob1 += log( gsl_ran_gaussian_pdf(healphy_sample[j][healphy_test[i]]-means_cancer[j] ,sds_cancer[j]) +eps);
             }
-            // prob0 += log(double(healphy_train.size())/(healphy_train.size()+cancer_train.size())+eps);
-            // prob1 += log(double(cancer_train.size())/(healphy_train.size()+cancer_train.size())+eps);
+            prob0 += log(double(healphy_train.size())/(healphy_train.size()+cancer_train.size())+eps);
+            prob1 += log(double(cancer_train.size())/(healphy_train.size()+cancer_train.size())+eps);
 //            cout<<prob1 - prob0<<endl;
             err_healphy += prob0 < prob1;
         }
@@ -307,7 +267,7 @@ void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
 // //            cout<<prob0 - prob1<<endl;
 //             err_cancer += prob1 < prob0;
 //         }
-//         err_cancer_glob_train += err_cancer;
+//         errs.cancerErr_train += err_cancer;
 
         cout<<"errs cancer train = "<<err_cancer<<" out of "<<cancer_train.size()<<endl;
         t = clock();
@@ -326,36 +286,36 @@ void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
 //            cout<<prob0 - prob1<<endl;
             err_cancer += prob1 < prob0;
         }
-        err_healphy_glob += err_healphy;
-        err_healphy_glob2 += err_healphy * err_healphy;
-        err_cancer_glob += err_cancer;
-        err_cancer_glob2 += err_cancer * err_cancer;
-        err_total_glob2 += (err_cancer + err_healphy)*(err_cancer + err_healphy);
+        errs.healphyErr += err_healphy;
+        errs.healphyErrSquared += err_healphy * err_healphy;
+        errs.cancerErr += err_cancer;
+        errs.cancerErrSquared += err_cancer * err_cancer;
+        errs.totalErrSquared += (err_cancer + err_healphy)*(err_cancer + err_healphy);
         cout<<"cancer predicting time = "<<double(clock() - t)/CLOCKS_PER_SEC<<endl;
         cout<<"errs = "<<err_cancer<<" out of "<<cancer_test.size()<<endl;
     }
     
-    cout<<"healphy errors:  "<<err_healphy_glob<< " out of "<<healphy_test.size()*experimentCount<<". "<<double(err_healphy_glob)/(healphy_test.size()*experimentCount)<<endl;
-    cout<<"cancer errors:  "<<err_cancer_glob<< " out of "<<cancer_test.size()*experimentCount<<". "<<double(err_cancer_glob)/(cancer_test.size()*experimentCount)<<endl;
+    cout<<"healphy errors:  "<<errs.healphyErr<< " out of "<<healphy_test.size()*experimentCount<<". "<<double(errs.healphyErr)/(healphy_test.size()*experimentCount)<<endl;
+    cout<<"cancer errors:  "<<errs.cancerErr<< " out of "<<cancer_test.size()*experimentCount<<". "<<double(errs.cancerErr)/(cancer_test.size()*experimentCount)<<endl;
     
-    double healphy_mean = double(err_healphy_glob)/(healphy_test.size()*experimentCount);
-    double healphy_mean_train = double(err_healphy_glob_train)/(healphy_train.size()*experimentCount);
+    double healphy_mean = double(errs.healphyErr)/(healphy_test.size()*experimentCount);
+    double healphy_mean_train = double(errs.healphyErrTrain)/(healphy_train.size()*experimentCount);
     double healphy_mean_sd = sqrt(
-        double(err_healphy_glob2)/(healphy_test.size()*
+        double(errs.healphyErrSquared)/(healphy_test.size()*
                                    healphy_test.size()*
                                    experimentCount) -
         healphy_mean*healphy_mean);
-    double cancer_mean = double(err_cancer_glob)/(cancer_test.size()*experimentCount);
-    double cancer_mean_train = double(err_cancer_glob_train)/(cancer_train.size()*experimentCount);
+    double cancer_mean = double(errs.cancerErr)/(cancer_test.size()*experimentCount);
+    double cancer_mean_train = double(errs.cancerErrTrain)/(cancer_train.size()*experimentCount);
     double cancer_mean_sd = sqrt(
-        double(err_cancer_glob2)/(cancer_test.size()*
+        double(errs.cancerErrSquared)/(cancer_test.size()*
                                    cancer_test.size()*
                                    experimentCount) -
         cancer_mean*cancer_mean);
     int tc= cancer_test.size() + healphy_test.size();
-    double total_mean = double(err_cancer_glob+err_healphy_glob)/(tc*experimentCount);
+    double total_mean = double(errs.cancerErr+errs.healphyErr)/(tc*experimentCount);
     double total_mean_sd = sqrt(
-        double(err_total_glob2)/(tc*tc*
+        double(errs.totalErrSquared)/(tc*tc*
                                   experimentCount) -
         total_mean*total_mean);
     
@@ -377,7 +337,7 @@ void make_experiment(string cancerName,gsl_rng* rand_generator, string outFile)
     ofile.close();
 }
 
-void make_experiment1(string cancerName,gsl_rng* rand_generator, string outFile)
+void ProcessCancer1(string cancerName,gsl_rng* rand_generator, string outFile)
 {
     string filenameResp = cancerName + ".resp.csv";
     vector<bool> resp = loadResponse(filenameResp);
@@ -527,7 +487,7 @@ int main()
     // cancers.push_back("BRCA");
     for (int i = 0; i < cancers.size(); i++)
     {
-        make_experiment(cancers[i], rand_generator,cancers[i]+outFileSuffix);
+        ProcessCancer(cancers[i], rand_generator,cancers[i]+outFileSuffix);
     }
     cout<<"after experiments\n";
     
@@ -535,4 +495,4 @@ int main()
     return 0;
 }
 
-
+//g++ -O3 bayes.cpp  -lgsl -lgslcblas  -o bayes && ./bayes
