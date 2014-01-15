@@ -222,9 +222,8 @@ void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
     
     for (int k = 0; k < experimentCount; k++)
     {
-        cout<<"experiment number: "<<k<<endl;
-        int healphyErrLocal = 0;
-        int cancerErrLocal = 0;
+        cout<<"experiment index: "<<k<<endl;
+        // Form train and test sets
         vector<int > healphyShuffle = get_sample(rand_generator, healphySize),
             cancerShuffle = get_sample(rand_generator, cancerSize);
         //TODO: redudand '+1'
@@ -237,21 +236,22 @@ void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
             cancerTest(cancerShuffle.begin()+cancerTrainSize + 1,
                                       cancerShuffle.end());
         
-        time_t t = clock();
         TrainModel model(
             mean(healphySample,healphyTrain),
             sd(healphySample,healphyTrain),
             mean(cancerSample,cancerTrain),
             sd(cancerSample,cancerTrain)
             );
+        
+        // Train complete at this point
+        // Testing
 
-//train complete at this step
-//testing
-
+        time_t t = clock();
+        int healphyErrLocal = 0;
+        int cancerErrLocal = 0;
         double prob0 = 0,
             prob1 = 0;
         
-        t = clock();
         healphyErrLocal = 0;
         for (int i = 0; i < healphyTest.size(); i++)
         {
@@ -287,7 +287,7 @@ void ProcessCancer(string cancerName,gsl_rng* rand_generator, string outFile)
 //             err_cancer += prob1 < prob0;
 //         }
 //         sumErrs.cancerErr_train += err_cancer;
-
+q
         cout<<"sumErrs cancer train = "<<cancerErrLocal<<" out of "<<cancerTrain.size()<<endl;
         t = clock();
         cancerErrLocal = 0;
