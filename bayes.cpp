@@ -305,10 +305,6 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
         {
             prob0 = GetProb(healphySample,model.healphyMean, model.healphySd,healphyTest[i],healphyClassProb);
             prob1 = GetProb(healphySample,model.cancerMean, model.cancerSd,healphyTest[i],cancerClassProb);
-//            cout<<prob1- prob0<<endl;
-            // cout<<prob1<<endl;
-            // cout<<prob0<<endl;
-
             healphyErrLocal += prob0 < prob1;
         }
         sumErrs.healphyErr += healphyErrLocal;
@@ -320,10 +316,6 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
         {
             prob0 = GetProb(healphySample,model.healphyMean, model.healphySd,healphyTrain[i],healphyClassProb);
             prob1 = GetProb(healphySample,model.cancerMean, model.cancerSd,healphyTrain[i],cancerClassProb);
-//            cout<<prob1- prob0<<endl;
-            // cout<<prob1<<endl;
-            // cout<<prob0<<endl;
-
             healphyErrLocal += prob0 < prob1;
         }
         sumErrs.healphyErrTrain += healphyErrLocal;
@@ -337,7 +329,6 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
         {
             prob0 = GetProb(cancerSample,model.healphyMean, model.healphySd,cancerTest[i],healphyClassProb);
             prob1 = GetProb(cancerSample,model.cancerMean, model.cancerSd,cancerTest[i],cancerClassProb);
-            // cout<<prob0 - prob1<<endl;
             cancerErrLocal += prob1 < prob0;
         }
         sumErrs.cancerErr += cancerErrLocal;
@@ -349,11 +340,7 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
         {
             prob0 = GetProb(cancerSample,model.healphyMean, model.healphySd,cancerTrain[i],healphyClassProb);
             prob1 = GetProb(cancerSample,model.cancerMean, model.cancerSd,cancerTrain[i],cancerClassProb);
-//            cout<<prob1- prob0<<endl;
-            // cout<<prob1<<endl;
-            // cout<<prob0<<endl;
-
-            cancerErrLocal += prob0 < prob1;
+            cancerErrLocal += prob1 < prob0;
         }
         sumErrs.cancerErrTrain += cancerErrLocal;
 
@@ -402,6 +389,9 @@ int main()
     gsl_rng_set(randGenerator, 0);
     
     string outFileSuffix("test_train_errs.txt");
+    ofstream ofile;
+    ofile.open(outFileSuffix.c_str(), iostream::out);
+    ofile.close();
 
     vector<string> cancers;
     cancers.push_back("BLCA");
