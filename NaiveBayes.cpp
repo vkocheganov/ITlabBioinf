@@ -38,7 +38,9 @@ vector<bool> loadResponse(string fileName)
         file >> temp;
         ret.push_back(temp);
     }
-    ret.pop_back();
+    // In case of redundant last line
+    // ret.pop_back();
+    
     file.close();
     cout<<"Loading response finished"<<endl;
 
@@ -141,8 +143,8 @@ vector<double> sd(vector<vector<double> >& sample, vector<int>& ind)
             sum2 += sample[i][ind[j]]*sample[i][ind[j]];
         }
 
-        // ret.push_back(sqrt((sum2 - sum*sum/N)/(N-1) + 0.00000000001));
-        ret.push_back(sqrt((sum2 - sum*sum/N)/(N) + 0.00000000001));
+        // ret.push_back(sqrt((sum2 - sum*sum/N)/(N-1)));
+        ret.push_back(sqrt((sum2 - sum*sum/N)/(N)));
     }
     return ret;
 }
@@ -166,17 +168,17 @@ vector<int> get_sample(gsl_rng* randGenerator, int max)
 
 struct SumErrorsStruct
 {
-    int healphyErr;
-    int cancerErr;
-    int healphyErrSquared;
-    int cancerErrSquared;
-    int totalErrSquared;
-    int healphyErrTrain;
-    int cancerErrTrain;
+    int healphyMis;
+    int cancerMis;
+    int healphyMisSquared;
+    int cancerMisSquared;
+    int totalMisSquared;
+    int healphyMisTrain;
+    int cancerMisTrain;
     SumErrorsStruct():
-        healphyErr(0), cancerErr(0), healphyErrSquared(0),
-        cancerErrSquared(0), totalErrSquared(0),
-        healphyErrTrain(0), cancerErrTrain(0)
+        healphyMis(0), cancerMis(0), healphyMisSquared(0),
+        cancerMisSquared(0), totalMisSquared(0),
+        healphyMisTrain(0), cancerMisTrain(0)
         {}
 };
 
@@ -231,9 +233,27 @@ struct ResultStatistics
             ofile<<total_mean_sd<<" "<<endl;
             ofile.close();
         }
+    static void MakeHeader(string filename)
+        {
+            ofstream ofile;
+            ofile.open(filename.c_str(), iostream::out);
+            ofile<<"CancerName"<<" ";
+            ofile<<"N_Exp"<<" ";
+            ofile<<"N_healphy"<<" ";
+            ofile<<"Healphy_mis"<<" ";
+            ofile<<"Healphy_mis_sd"<<" ";
+            ofile<<"Healphy_mis_train"<<" ";
+            ofile<<"N_cancer"<<" ";
+            ofile<<"Cancer_mis"<<" ";
+            ofile<<"Cancer_mis_sd"<<" ";
+            ofile<<"Cancer_mis_train"<<" ";
+            ofile<<"N_total"<<" ";
+            ofile<<"Total_mis"<<" ";
+            ofile<<"Total_mis_sd"<<" "<<endl;
+            ofile.close();
+        }
 };
     
-
 double GetProb(vector<vector<double> >& samples, vector<double>& means, vector<double>& sds,int idx, double subclassProb)
 {
     double prob = 0;
@@ -294,8 +314,8 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
         // Train complete at this point
         // Predicting
         time_t t = clock();
-        int healphyErrLocal = 0;
-        int cancerErrLocal = 0;
+        int healphyMisLocal = 0;
+        int cancerMisLocal = 0;
         double prob0 = 0,
             prob1 = 0,
             healphyClassProb = log(double(healphyTrainSize)/(healphyTrainSize+cancerTrainSize)+smoothingEps),
@@ -305,74 +325,76 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
         {
             prob0 = GetProb(healphySample,model.healphyMean, model.healphySd,healphyTest[i],healphyClassProb);
             prob1 = GetProb(healphySample,model.cancerMean, model.cancerSd,healphyTest[i],cancerClassProb);
-            healphyErrLocal += prob0 < prob1;
+            healphyMisLocal += prob0 < prob1;
         }
-        sumErrs.healphyErr += healphyErrLocal;
-        sumErrs.healphyErrSquared += healphyErrLocal * healphyErrLocal;
-
-        cout<<"healphy train predicting"<<endl;
-        healphyErrLocal = 0;
-        for (int i = 0; i < healphyTrainSize; i++)
-        {
-            prob0 = GetProb(healphySample,model.healphyMean, model.healphySd,healphyTrain[i],healphyClassProb);
-            prob1 = GetProb(healphySample,model.cancerMean, model.cancerSd,healphyTrain[i],cancerClassProb);
-            healphyErrLocal += prob0 < prob1;
-        }
-        sumErrs.healphyErrTrain += healphyErrLocal;
+        sumErrs.healphyMis += healphyMisLocal;
+        sumErrs.healphyMisSquared += healphyMisLocal * healphyMisLocal;
         cout<<"healphy predicting time = "<<double(clock() - t)/CLOCKS_PER_SEC<<endl;
-        cout<<"sumErrs = "<<healphyErrLocal<<" out of "<<healphyTestSize<<endl;
+        cout<<"sumErrs = "<<healphyMisLocal<<" out of "<<healphyTestSize<<endl;
 
         t = clock();
-        cancerErrLocal = 0;
+        cancerMisLocal = 0;
         cout<<"cancer predicting"<<endl;
         for (int i = 0; i < cancerTestSize; i++)
         {
             prob0 = GetProb(cancerSample,model.healphyMean, model.healphySd,cancerTest[i],healphyClassProb);
             prob1 = GetProb(cancerSample,model.cancerMean, model.cancerSd,cancerTest[i],cancerClassProb);
-            cancerErrLocal += prob1 < prob0;
+            cancerMisLocal += prob1 < prob0;
         }
-        sumErrs.cancerErr += cancerErrLocal;
-        sumErrs.cancerErrSquared += cancerErrLocal * cancerErrLocal;
+        sumErrs.cancerMis += cancerMisLocal;
+        sumErrs.cancerMisSquared += cancerMisLocal * cancerMisLocal;
+        cout<<"cancer predicting time = "<<double(clock() - t)/CLOCKS_PER_SEC<<endl;
+        cout<<"sumErrs = "<<cancerMisLocal<<" out of "<<cancerTestSize<<endl;
+        sumErrs.totalMisSquared += (cancerMisLocal + healphyMisLocal)*(cancerMisLocal + healphyMisLocal);
         
+        cout<<"healphy train predicting"<<endl;
+        healphyMisLocal = 0;
+        for (int i = 0; i < healphyTrainSize; i++)
+        {
+            prob0 = GetProb(healphySample,model.healphyMean, model.healphySd,healphyTrain[i],healphyClassProb);
+            prob1 = GetProb(healphySample,model.cancerMean, model.cancerSd,healphyTrain[i],cancerClassProb);
+            healphyMisLocal += prob0 < prob1;
+        }
+        sumErrs.healphyMisTrain += healphyMisLocal;
+        cout<<"sumErrs = "<<healphyMisLocal<<" out of "<<healphyTestSize<<endl;
+
         cout<<"cancer train predicting"<<endl;
-        cancerErrLocal = 0;
+        cancerMisLocal = 0;
         for (int i = 0; i < cancerTrainSize; i++)
         {
             prob0 = GetProb(cancerSample,model.healphyMean, model.healphySd,cancerTrain[i],healphyClassProb);
             prob1 = GetProb(cancerSample,model.cancerMean, model.cancerSd,cancerTrain[i],cancerClassProb);
-            cancerErrLocal += prob1 < prob0;
+            cancerMisLocal += prob1 < prob0;
         }
-        sumErrs.cancerErrTrain += cancerErrLocal;
+        sumErrs.cancerMisTrain += cancerMisLocal;
 
-        cout<<"cancer predicting time = "<<double(clock() - t)/CLOCKS_PER_SEC<<endl;
-        cout<<"sumErrs = "<<cancerErrLocal<<" out of "<<cancerTestSize<<endl;
-        sumErrs.totalErrSquared += (cancerErrLocal + healphyErrLocal)*(cancerErrLocal + healphyErrLocal);
+        cout<<"sumErrs = "<<cancerMisLocal<<" out of "<<cancerTestSize<<endl;
     }
     
-    cout<<"healphy errors:  "<<sumErrs.healphyErr<< " out of "<<healphyTestSize*experimentCount<<". "<<double(sumErrs.healphyErr)/(healphyTestSize*experimentCount)<<endl;
-    cout<<"cancer errors:  "<<sumErrs.cancerErr<< " out of "<<cancerTestSize*experimentCount<<". "<<double(sumErrs.cancerErr)/(cancerTestSize*experimentCount)<<endl;
+    cout<<"healphy errors:  "<<sumErrs.healphyMis<< " out of "<<healphyTestSize*experimentCount<<". "<<double(sumErrs.healphyMis)/(healphyTestSize*experimentCount)<<endl;
+    cout<<"cancer errors:  "<<sumErrs.cancerMis<< " out of "<<cancerTestSize*experimentCount<<". "<<double(sumErrs.cancerMis)/(cancerTestSize*experimentCount)<<endl;
 
     // Calculating result statistics and saving it into ResultStatistics structure
     ResultStatistics resStat;
     
-    resStat.healphy_mean = double(sumErrs.healphyErr)/(healphyTestSize*experimentCount);
-    resStat.healphy_mean_train = double(sumErrs.healphyErrTrain)/(healphyTrainSize*experimentCount);
+    resStat.healphy_mean = double(sumErrs.healphyMis)/(healphyTestSize*experimentCount);
+    resStat.healphy_mean_train = double(sumErrs.healphyMisTrain)/(healphyTrainSize*experimentCount);
     resStat.healphy_mean_sd = sqrt(
-        double(sumErrs.healphyErrSquared)/(healphyTestSize*
+        double(sumErrs.healphyMisSquared)/(healphyTestSize*
                                            healphyTestSize*
                                            experimentCount) -
         resStat.healphy_mean*resStat.healphy_mean);
-    resStat.cancer_mean = double(sumErrs.cancerErr)/(cancerTestSize*experimentCount);
-    resStat.cancer_mean_train = double(sumErrs.cancerErrTrain)/(cancerTrainSize*experimentCount);
+    resStat.cancer_mean = double(sumErrs.cancerMis)/(cancerTestSize*experimentCount);
+    resStat.cancer_mean_train = double(sumErrs.cancerMisTrain)/(cancerTrainSize*experimentCount);
     resStat.cancer_mean_sd = sqrt(
-        double(sumErrs.cancerErrSquared)/(cancerTestSize*
+        double(sumErrs.cancerMisSquared)/(cancerTestSize*
                                           cancerTestSize*
                                           experimentCount) -
         resStat.cancer_mean*resStat.cancer_mean);
     resStat.tc= cancerTestSize + healphyTestSize;
-    resStat.total_mean = double(sumErrs.cancerErr+sumErrs.healphyErr)/(resStat.tc*experimentCount);
+    resStat.total_mean = double(sumErrs.cancerMis+sumErrs.healphyMis)/(resStat.tc*experimentCount);
     resStat.total_mean_sd = sqrt(
-        double(sumErrs.totalErrSquared)/(resStat.tc*resStat.tc*
+        double(sumErrs.totalMisSquared)/(resStat.tc*resStat.tc*
                                          experimentCount) -
         resStat.total_mean*resStat.total_mean);
     resStat.cancerName = cancerName;
@@ -385,14 +407,12 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
 int main()
 {
     gsl_rng* randGenerator= gsl_rng_alloc(gsl_rng_taus);
-//     gsl_rng_set(randGenerator, time(NULL));
+//    gsl_rng_set(randGenerator, time(NULL));
     gsl_rng_set(randGenerator, 0);
     
     string outFileSuffix("test_train_errs.txt");
-    ofstream ofile;
-    ofile.open(outFileSuffix.c_str(), iostream::out);
-    ofile.close();
-
+    ResultStatistics::MakeHeader(outFileSuffix);
+    
     vector<string> cancers;
     cancers.push_back("BLCA");
     // cancers.push_back("READ");
@@ -417,129 +437,3 @@ int main()
     gsl_rng_free(randGenerator);
     return 0;
 }
-
-// void ProcessCancer1(string cancerName,gsl_rng* randGenerator, string outFile)
-// {
-//     string filenameResp = cancerName + ".resp.csv";
-//     vector<bool> resp = loadResponse(filenameResp);
-//     cout<<"resp size = "<<resp.size()<<endl;
-
-//     string filenameSample = cancerName + ".sample.csv";
-//     vector<vector<double> > healphySample,
-//         cancerSample;
-//     loadSamples(healphySample, cancerSample, resp, filenameSample);
-//     cout<<"healphy sample size = "<<healphySample.size()<<endl;
-//     cout<<"cancer sample size = "<<cancerSample.size()<<endl;
-    
-//     int experimentCount = 15;
-//     double eps = 0.00000000001;
-//     int err_healphy = 0;
-//     int err_cancer = 0;
-//     int kvant_count = MIN(1/0.05,healphySample[0].size()/2);
-//     int kvant = (1.0001)/kvant_count * healphySample[0].size()/2;
-//     vector<int> err_healphy_glob(kvant_count);
-//     for (int i = 0; i < err_healphy_glob.size(); i++)
-//         err_healphy_glob[i] = 0;
-//     vector<int> err_healphy_glob_train(kvant_count);
-//     for (int i = 0; i < err_healphy_glob_train.size(); i++)
-//         err_healphy_glob_train[i] = 0;
-
-//     cout<<"healphy train size = "<<healphySample[0].size()/2<<endl;
-
-//     for (int k = 0; k < experimentCount; k++)
-//     {
-//         vector<int > healphyShuffle(get_sample(randGenerator, healphySample[0].size())),
-//             cancerShuffle(get_sample(randGenerator, cancerSample[0].size()));
-        
-//         vector<int> healphyTest(healphyShuffle.begin()+healphySample[0].size()/2 + 1,
-//                               healphyShuffle.end());
-//         vector<int> cancerTrain(cancerShuffle.begin(),
-//                                    cancerShuffle.begin()+cancerSample[0].size()/2);
-//         vector<int> cancerTest(cancerShuffle.begin()+cancerSample[0].size()/2 + 1,
-//                                   cancerShuffle.end());
-        
-//         for (int l = 1; l <= kvant_count; l++)
-//         {
-//             vector<int> healphyTrain(healphyShuffle.begin(),
-//                                         healphyShuffle.begin()+l*kvant);
-
-//             cout<<"experiment "<<k<<"healphyTrain size = "<<healphyTrain.size()<<endl;
-        
-//             vector<double> means_healphy = mean(healphySample,healphyTrain);
-//             vector<double> means_cancer = mean(cancerSample,cancerTrain);
-    
-//             vector<double> sds_healphy = sd(healphySample,healphyTrain);
-//             vector<double> sds_cancer = sd(cancerSample,cancerTrain);
-
-// //train complete at this step
-// //testing
-
-//             double prob0 = 0,
-//                 prob1 = 0;
-
-//             err_healphy = 0;
-//             for (int i = 0; i < healphyTest.size(); i++)
-//             {
-//                 prob0 = 0;
-//                 prob1 = 0;
-//                 for (int j = 0; j < healphySample.size(); j++)
-//                 {
-//                     prob0 += log( gsl_ran_gaussian_pdf(healphySample[j][healphyTest[i]]-means_healphy[j],sds_healphy[j])  +eps);
-//                     prob1 += log( gsl_ran_gaussian_pdf(healphySample[j][healphyTest[i]]-means_cancer[j] ,sds_cancer[j]) +eps);
-//                 }
-//                 err_healphy += prob0 < prob1;
-//                 cout<<prob0<<" "<<  prob1<<endl;
-//             }
-//             cout<<"errs = "<<err_healphy<<" out of "<<healphyTest.size()<<endl;
-//             err_healphy_glob[l-1] += err_healphy;
-            
-//             err_healphy = 0;
-//             for (int i = 0; i < healphyTrain.size(); i++)
-//             {
-//                 prob0 = 0;
-//                 prob1 = 0;
-//                 for (int j = 0; j < healphySample.size(); j++)
-//                 {
-//                     prob0 += log( gsl_ran_gaussian_pdf(healphySample[j][healphyTrain[i]]-means_healphy[j],sds_healphy[j])  +eps);
-//                     prob1 += log( gsl_ran_gaussian_pdf(healphySample[j][healphyTrain[i]]-means_cancer[j] ,sds_cancer[j]) +eps);
-//                 }
-//                 err_healphy += prob0 < prob1;
-//             }
-//             cout<<"errs = "<<err_healphy<<" out of "<<healphyTrain.size()<<endl;
-//             err_healphy_glob_train[l-1] += err_healphy;
-
-//         }
-//     }
-//     vector<double> healphy_mean(kvant_count);
-//     for (int i = 0; i < healphy_mean.size(); i++)
-//     {
-//         cout<<i<<endl;
-//         healphy_mean[i] = double(err_healphy_glob[i])/((healphySample[0].size() - healphySample[0].size()/2)*experimentCount);
-//     }
-    
-//     vector<double> healphy_mean_train(kvant_count);
-//     for (int i = 0; i < healphy_mean_train.size(); i++)
-//     {
-//         cout<<i<<endl;
-//         healphy_mean_train[i] = double(err_healphy_glob_train[i])/((i+1)*kvant*experimentCount);
-//     }
-    
-//     ofstream ofile;
-//     ofile.open(outFile.c_str(), iostream::out);
-//     ofile<<kvant<<endl;
-//     for (int i = 0; i < healphy_mean.size(); i++)
-//     {
-//         cout<<i<<endl;
-//         ofile<<healphy_mean[i]<<" ";
-//     }
-//     ofile<<endl;
-//     for (int i = 0; i < healphy_mean_train.size(); i++)
-//     {
-//         cout<<i<<endl;
-//         ofile<<healphy_mean_train[i]<<" ";
-//     }
-//     ofile<<endl;
-    
-//     ofile.close();
-//     cout<<"before closing\n";
-// }

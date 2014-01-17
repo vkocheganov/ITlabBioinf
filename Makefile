@@ -1,4 +1,4 @@
-run: bayes
-	./bayes
-bayes: bayes.cpp
-	g++ -O3 bayes.cpp  -lgsl -lgslcblas  -o bayes
+run: NaiveBayes
+	./NaiveBayes
+NaiveBayes: NaiveBayes.cpp
+	g++ -O3 NaiveBayes.cpp  -lgsl -lgslcblas  -o NaiveBayes
