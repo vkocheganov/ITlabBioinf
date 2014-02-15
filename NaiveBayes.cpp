@@ -38,9 +38,9 @@ vector<bool> loadResponse(string fileName)
         file >> temp;
         ret.push_back(temp);
     }
-    // In case of redundant last line
-    // ret.pop_back();
-    
+    // In case of redundant last line. R package likes add such lines.
+    ret.pop_back();
+
     file.close();
     cout<<"Loading response finished"<<endl;
 
@@ -96,6 +96,7 @@ void loadSamples(vector< vector <double> >& healphy,
                 healphyVec.push_back(temp);
             count++;
         }
+
         cancer.push_back(cancerVec);
         healphy.push_back(healphyVec);
         
@@ -104,7 +105,6 @@ void loadSamples(vector< vector <double> >& healphy,
             cout <<"progress: " << cancer.size()<<endl;
         }
     }
-    
     file.close();
     cout<<"Loading samples finished"<<endl;
 }
@@ -144,7 +144,7 @@ vector<double> sd(vector<vector<double> >& sample, vector<int>& ind)
         }
 
         // ret.push_back(sqrt((sum2 - sum*sum/N)/(N-1)));
-        ret.push_back(sqrt((sum2 - sum*sum/N)/(N)));
+        ret.push_back(sqrt((sum2 - sum*sum/N)/(N)+smoothingEps));
     }
     return ret;
 }
@@ -287,7 +287,7 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
         cancerTrainSize = cancerSize*trainPart,
         healphyTestSize = healphySize - healphyTrainSize,
         cancerTestSize = cancerSize - cancerTrainSize;
-    
+
     // Main loop
     for (int k = 0; k < experimentCount; k++)
     {
@@ -303,13 +303,14 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
                         cancerShuffle.begin()+cancerTrainSize),
             cancerTest(cancerShuffle.begin()+cancerTrainSize,
                        cancerShuffle.end());
-        
+        cout<<"training model\n";
         TrainModel model(
             mean(healphySample,healphyTrain),
             sd(healphySample,healphyTrain),
             mean(cancerSample,cancerTrain),
             sd(cancerSample,cancerTrain)
             );
+        cout<<"after training model\n";
         
         // Train complete at this point
         // Predicting
@@ -326,6 +327,7 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
             prob0 = GetProb(healphySample,model.healphyMean, model.healphySd,healphyTest[i],healphyClassProb);
             prob1 = GetProb(healphySample,model.cancerMean, model.cancerSd,healphyTest[i],cancerClassProb);
             healphyMisLocal += prob0 < prob1;
+            cout<<"prob1 - prob0 = "<< prob1-prob0<<endl;
         }
         sumErrs.healphyMis += healphyMisLocal;
         sumErrs.healphyMisSquared += healphyMisLocal * healphyMisLocal;
@@ -340,6 +342,7 @@ void ProcessCancer(string cancerName,gsl_rng* randGenerator, string outFile)
             prob0 = GetProb(cancerSample,model.healphyMean, model.healphySd,cancerTest[i],healphyClassProb);
             prob1 = GetProb(cancerSample,model.cancerMean, model.cancerSd,cancerTest[i],cancerClassProb);
             cancerMisLocal += prob1 < prob0;
+            cout<<"prob0 - prob1 = "<< prob0-prob1<<endl;
         }
         sumErrs.cancerMis += cancerMisLocal;
         sumErrs.cancerMisSquared += cancerMisLocal * cancerMisLocal;
