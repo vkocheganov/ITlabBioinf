@@ -105,6 +105,7 @@ void loadSamples(vector< vector <double> >& healphy,
             cout <<"progress: " << cancer.size()<<endl;
         }
     }
+    cout<<"cancer.size() = "<<cancer.size()<<endl;
     file.close();
     cout<<"Loading samples finished"<<endl;
 }
@@ -417,8 +418,8 @@ int main()
     ResultStatistics::MakeHeader(outFileSuffix);
     
     vector<string> cancers;
-    cancers.push_back("BLCA");
-    // cancers.push_back("READ");
+    // cancers.push_back("BLCA");
+    cancers.push_back("READ");
     // cancers.push_back("KIRP");
     // cancers.push_back("LIHC");
     // cancers.push_back("PRAD");
