@@ -1,7 +1,7 @@
 from numpy import *
 from numpy.linalg import *
 from scipy.stats import norm
-
+import csv
 trainRatio=0.5
 smoothingEps=0.0000000000000000000000000001
 ExperimentNumber=1
@@ -9,6 +9,19 @@ folderName="/home/victor/Documents/beta_data/ITlabBioinf/temp/"
 #folderName="G:/betta_data/temp"
 cancerName="READ"
 
+def LoadArr(fileName):
+    samples = []
+    with open(fileName)	as csvfile:
+        fileReader = csv.reader(csvfile, delimiter=' ')
+        for line in fileReader:
+            probe = []
+            for word in line:
+                probe.append(float(word))
+            samples.append(probe)
+    samples = array(samples)
+    return samples
+        
+    
 def MakeExperiment(hSamples, hTrainSize, hTestSize,cSamples, cTrainSize, cTestSize):
     hrandPerm=random.permutation(len(hSamples[0]))
     #hTrainInd=hrandPerm[range(hTrainSize)]
@@ -62,7 +75,8 @@ def ProcessCancer(folderName,cancerName,filewrite):
     print("Processing ", cancerName)
     sampleFileName=folderName+"/"+cancerName+".sample.csv"
     respFileName=folderName+"/"+cancerName+".resp.csv"
-    samples= loadtxt(sampleFileName, dtype=float)
+    samples = LoadArr(sampleFileName)
+    # samples= loadtxt(sampleFileName, dtype=float)
     responses= loadtxt(respFileName, dtype=bool)
     hSamples=samples[:,~responses]
     hTrainSize=int(len(hSamples[0])*trainRatio)
@@ -73,6 +87,7 @@ def ProcessCancer(folderName,cancerName,filewrite):
     sumHErr=0
     sumCErr=0
     for ind in range(ExperimentNumber):
+        print("Making ", ind, "experiment")
         herr,cerr=MakeExperiment(hSamples, hTrainSize, hTestSize,cSamples, cTrainSize, cTestSize)
         print("ind = ",ind," herr = ",herr,"/",hTestSize, " cerr = ",cerr,"/",cTestSize)
         sumHErr+=herr
@@ -83,9 +98,13 @@ def ProcessCancer(folderName,cancerName,filewrite):
     print("Healphy: ",sumHErr,"/",hTestSize*ExperimentNumber, " (",herr,")\n")
     print("Cancer: ",sumCErr,"/",cTestSize*ExperimentNumber, " (",cerr,")\n")
     filewrite.write(cancerName + " " + str(ExperimentNumber) + " " + str(len(hSamples[0])) + " "+ str(len(cSamples[0])) + " " + str(herr) + " " + str(cerr))
-    
+
+# samples = LoadArr("mycsv")
+# myar = [[1, 2, 3], [4, 5, 6]]
+# print(samples)
+# exit(0)
 cancers = []
-# cancers.append("BLCA");
+cancers.append("BLCA");
 cancers.append("READ");
 # cancers.append("KIRP");
 # cancers.append("LIHC");
